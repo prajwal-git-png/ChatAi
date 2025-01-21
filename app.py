@@ -61,7 +61,7 @@ try:
         socketTimeoutMS=20000,
         connect=True,
         retryWrites=True,
-        tlsCAFile=False
+        tls=True
     )
     # Test the connection
     mongo_client.server_info()
