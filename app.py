@@ -50,7 +50,16 @@ try:
     if not mongo_uri:
         raise ValueError("MONGODB_URI environment variable is not set")
 
-    mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+    mongo_client = MongoClient(
+        mongo_uri,
+        serverSelectionTimeoutMS=5000,
+        ssl=True,
+        ssl_cert_reqs='CERT_NONE',
+        connect=True,
+        connectTimeoutMS=20000,
+        retryWrites=True,
+        w='majority'
+    )
     # Test the connection
     mongo_client.server_info()
     db = mongo_client.get_database('chatbot')
