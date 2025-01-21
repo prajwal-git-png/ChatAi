@@ -1,13 +1,9 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import json
-import os
-import secrets
-import google.generativeai as palm
-from chat_manager import ChatManager
-from image_generator import ImageGenerator
+import google.generativeai as genai
 from dotenv import load_dotenv
 from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 from bson import ObjectId
@@ -25,8 +21,6 @@ app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
-login_manager.login_message = 'Please login to access this page'
-login_manager.login_message_category = 'error'
 
 # Local storage for users
 USERS_FILE = 'users.json'
@@ -50,35 +44,23 @@ def save_users(users):
 
 # User class
 class User(UserMixin):
-    def __init__(self, user_id, username, email, password, is_admin=False):
+    def __init__(self, user_id, username, email):
         self.id = user_id
         self.username = username
         self.email = email
-        self.password = password
-        self.is_admin = is_admin
-
-    def check_password(self, password):
-        return check_password_hash(self.password, password)
 
 @login_manager.user_loader
 def load_user(user_id):
     users = load_users()
     if user_id in users:
         user_data = users[user_id]
-        return User(user_id, user_data['username'], user_data['email'], user_data['password'], user_data.get('is_admin', False))
+        return User(user_id, user_data['username'], user_data['email'])
     return None
-
-def requires_admin(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_admin:
-            flash('Access denied. Admin privileges required.')
-            return redirect(url_for('home'))
-        return f(*args, **kwargs)
-    return decorated_function
 
 try:
     # Initialize chat manager and image generator
+    from chat_manager import ChatManager
+    from image_generator import ImageGenerator
     chat_manager = ChatManager(max_history=50)
     image_generator = ImageGenerator()
 
@@ -122,7 +104,7 @@ def register():
         
         save_users(users)
         
-        user = User(user_id, username, email, users[user_id]['password'])
+        user = User(user_id, username, email)
         login_user(user)
         flash('Registration successful!', 'success')
         return redirect(url_for('home'))
@@ -131,10 +113,12 @@ def register():
 
 @app.route('/login', methods=['POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
     try:
         username = request.form['username']
         password = request.form['password']
-        login_type = request.form.get('login_type', 'user')
         
         users = load_users()
         
@@ -148,19 +132,10 @@ def login():
                 break
         
         if user_data and check_password_hash(user_data['password'], password):
-            # Check if admin login attempt
-            if login_type == 'admin' and not user_data.get('is_admin', False):
-                flash('Invalid admin credentials')
-                return redirect(url_for('login_page'))
-            
-            user = User(user_id, username, user_data['email'], user_data['password'], user_data.get('is_admin', False))
+            user = User(user_id, username, user_data['email'])
             login_user(user)
             flash('Login successful!', 'success')
             next_page = request.args.get('next')
-            
-            # Redirect admin to admin dashboard
-            if user.is_admin:
-                return redirect(url_for('admin_dashboard'))
             
             return redirect(next_page or url_for('home'))
         
@@ -173,14 +148,10 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
-    try:
-        logout_user()
-        session.clear()
-        flash('You have been logged out successfully', 'success')
-        return redirect(url_for('login_page'))
-    except Exception as e:
-        flash(f'An error occurred during logout: {str(e)}')
-        return redirect(url_for('home'))
+    logout_user()
+    session.clear()
+    flash('You have been logged out successfully', 'success')
+    return redirect(url_for('login_page'))
 
 @app.route('/')
 @login_required
@@ -220,7 +191,7 @@ def update_profile():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
-@app.route('/chat/<chat_id>', methods=['DELETE'])
+@app.route('/delete_chat/<chat_id>', methods=['DELETE'])
 @login_required
 def delete_chat(chat_id):
     try:
@@ -268,8 +239,8 @@ def chat():
                 return jsonify({'error': error_msg}), 500
         
         # Handle normal text chat
-        palm.configure(api_key=api_key)
-        model = palm.GenerativeModel('gemini-pro')
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
         
         context = chat_manager.get_context_for_prompt(current_user.get_id())
         full_prompt = f"{context}\nUser: {message}\nAssistant:"
@@ -284,7 +255,7 @@ def chat():
         print(f"Error in chat route: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/generate_image', methods=['POST'])
+@app.route('/generate-image', methods=['POST'])
 @login_required
 def generate_image():
     try:
@@ -318,84 +289,13 @@ def verify_api_key():
             return jsonify({'valid': False, 'error': 'API key is required'}), 400
         
         # Try to configure and make a simple test request
-        palm.configure(api_key=api_key)
-        model = palm.GenerativeModel('gemini-pro')
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
         # Make a simple test request
         response = model.generate_content("Hello")
         return jsonify({'valid': True})
     except Exception as e:
         return jsonify({'valid': False, 'error': str(e)}), 400
-
-@app.route('/admin/dashboard')
-@login_required
-@requires_admin
-def admin_dashboard():
-    try:
-        users = load_users()
-        return render_template('admin_dashboard.html', users=users)
-    except Exception as e:
-        print(f"Error in admin dashboard: {str(e)}")
-        flash('An error occurred while loading the admin dashboard', 'error')
-        return redirect(url_for('home'))
-
-@app.route('/admin/delete_user/<user_id>', methods=['DELETE'])
-@login_required
-@requires_admin
-def delete_user(user_id):
-    try:
-        users = load_users()
-        if user_id in users:
-            del users[user_id]
-            save_users(users)
-            return jsonify({"success": True})
-        return jsonify({"success": False, "message": "User not found"})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)})
-
-@app.route('/admin/create_admin', methods=['POST'])
-@login_required
-@requires_admin
-def create_admin():
-    try:
-        email = request.form.get('email')
-        password = request.form.get('password')
-        name = request.form.get('name')
-        
-        if not all([email, password, name]):
-            flash('All fields are required')
-            return redirect(url_for('admin_dashboard'))
-        
-        users = load_users()
-        user_id = str(len(users) + 1)
-        users[user_id] = {
-            'username': name,
-            'email': email,
-            'password': generate_password_hash(password),
-            'is_admin': True
-        }
-        save_users(users)
-        
-        flash('Admin user created successfully!', 'success')
-        return redirect(url_for('admin_dashboard'))
-    except Exception as e:
-        flash(f'An error occurred: {str(e)}')
-        return redirect(url_for('admin_dashboard'))
-
-@app.route('/admin/user_details/<user_id>')
-@login_required
-@requires_admin
-def user_details(user_id):
-    try:
-        users = load_users()
-        if user_id in users:
-            user = User(user_id, users[user_id]['username'], users[user_id]['email'], users[user_id]['password'], users[user_id].get('is_admin', False))
-            return render_template('user_details.html', user=user)
-        flash('User not found', 'error')
-        return redirect(url_for('admin_dashboard'))
-    except Exception as e:
-        print(f"Error in user details: {str(e)}")
-        flash('An error occurred while fetching user details', 'error')
-        return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
