@@ -50,14 +50,17 @@ try:
     if not mongo_uri:
         raise ValueError("MONGODB_URI environment variable is not set")
 
+    # Ensure the URI has the necessary parameters
+    if '?' not in mongo_uri:
+        mongo_uri += '?retryWrites=true&w=majority&tls=true'
+    
     mongo_client = MongoClient(
         mongo_uri,
-        serverSelectionTimeoutMS=5000,
+        serverSelectionTimeoutMS=30000,
         connectTimeoutMS=20000,
         socketTimeoutMS=20000,
         connect=True,
-        retryWrites=True,
-        tlsAllowInvalidCertificates=True
+        retryWrites=True
     )
     # Test the connection
     mongo_client.server_info()
