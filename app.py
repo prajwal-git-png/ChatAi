@@ -53,12 +53,11 @@ try:
     mongo_client = MongoClient(
         mongo_uri,
         serverSelectionTimeoutMS=5000,
-        ssl=True,
-        ssl_cert_reqs='CERT_NONE',
-        connect=True,
         connectTimeoutMS=20000,
+        socketTimeoutMS=20000,
+        connect=True,
         retryWrites=True,
-        w='majority'
+        tlsAllowInvalidCertificates=True
     )
     # Test the connection
     mongo_client.server_info()
