@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h2>Welcome Back</h2>
+            </div>
+            
+            <div class="auth-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="auth-tabs">
+                    <div class="auth-tab active" id="userTab" onclick="switchTab('user')">
+                        User Login
+                    </div>
+                    <div class="auth-tab admin" id="adminTab" onclick="switchTab('admin')">
+                        Admin Login
+                    </div>
+                </div>
+
+                <!-- User Login Form -->
+                <div id="userForm" class="auth-form">
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="mb-3">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" class="form-control" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control" name="password" required>
+                        </div>
+                        <input type="hidden" name="login_type" value="user">
+                        <button type="submit" class="btn btn-primary w-100">Sign In</button>
+                    </form>
+                    <div class="auth-footer">
+                        <p>Don't have an account? <a href="{{ url_for('register') }}">Create one</a></p>
+                    </div>
+                </div>
+
+                <!-- Admin Login Form -->
+                <div id="adminForm" class="auth-form" style="display: none;">
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="mb-3">
+                            <label class="form-label">Admin Email</label>
+                            <input type="email" class="form-control" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Admin Password</label>
+                            <input type="password" class="form-control" name="password" required>
+                        </div>
+                        <input type="hidden" name="login_type" value="admin">
+                        <button type="submit" class="btn btn-danger w-100">Admin Sign In</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(type) {
+    const userTab = document.getElementById('userTab');
+    const adminTab = document.getElementById('adminTab');
+    const userForm = document.getElementById('userForm');
+    const adminForm = document.getElementById('adminForm');
+
+    if (type === 'admin') {
+        userTab.classList.remove('active');
+        adminTab.classList.add('active');
+        userForm.style.display = 'none';
+        adminForm.style.display = 'block';
+    } else {
+        adminTab.classList.remove('active');
+        userTab.classList.add('active');
+        adminForm.style.display = 'none';
+        userForm.style.display = 'block';
+    }
+}
+</script>
+{% endblock %}
