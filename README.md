@@ -17,26 +17,20 @@ A sophisticated AI chatbot built using Flask and Google's Gemini Pro API. The pr
 ---
 ## Screenshots 
 
+![Screenshot 2025-01-20 180222](https://github.com/user-attachments/assets/1c658857-3ee4-4fb1-b9c4-ce766ab9a9f9)
 
-![Screenshot 2025-01-20 180222](https://github.com/user-attachments/assets/80a77e26-35fa-4459-898c-a640d6684098)
+![Screenshot 2025-01-20 180251](https://github.com/user-attachments/assets/c8495d04-e044-41c1-82ad-7358290d1e55)
 
--
+![Screenshot 2025-01-20 180307](https://github.com/user-attachments/assets/89b677dc-c37d-4179-bc04-3b7e989890bb)
 
-![Screenshot 2025-01-20 180231](https://github.com/user-attachments/assets/41867d57-82e1-435b-a8fe-14d0a7982434)
+![Screenshot 2025-01-20 175743](https://github.com/user-attachments/assets/a61881e5-0884-465e-9872-03cfdb570a13)
 
--
+![Screenshot 2025-01-20 175822](https://github.com/user-attachments/assets/eae0b945-58d7-4936-a298-e9569b622d08)
 
-
-![Screenshot 2025-01-20 175743](https://github.com/user-attachments/assets/9ce0cdee-79bd-4256-bde1-606ac7a6b528)
-
--
-![Screenshot 2025-01-20 175822](https://github.com/user-attachments/assets/0f5cc7ab-678f-4943-baec-fe6167c03000)
-
--
-![Screenshot 2025-01-20 180251](https://github.com/user-attachments/assets/e807040d-8924-4217-bb4e-bee9575c11ef)
+![Screenshot 2024-11-26 234148](https://github.com/user-attachments/assets/880999ab-5e8c-4981-a8d7-1d27e455012a)
 
 
-![Screenshot 2025-01-20 180307](https://github.com/user-attachments/assets/ae9d19fd-c725-4001-9a69-8364cc14ed27)
+
 
 
 ## 🛠️ Technologies Used
