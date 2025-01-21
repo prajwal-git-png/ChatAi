@@ -52,7 +52,7 @@ try:
 
     # Ensure the URI has the necessary parameters
     if '?' not in mongo_uri:
-        mongo_uri += '?retryWrites=true&w=majority&tls=true'
+        mongo_uri += '?retryWrites=true&w=majority'
     
     mongo_client = MongoClient(
         mongo_uri,
@@ -61,7 +61,8 @@ try:
         socketTimeoutMS=20000,
         connect=True,
         retryWrites=True,
-        tls=True
+        tls=True,
+        tlsAllowInvalidCertificates=True
     )
     # Test the connection
     mongo_client.server_info()
@@ -658,4 +659,5 @@ def user_details(user_id):
         return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
