@@ -9,4 +9,6 @@ services:
         value: 3.9.0
       - key: WEB_CONCURRENCY
         value: 4
+      - key: SECRET_KEY
+        generateValue: true
     autoDeploy: true
