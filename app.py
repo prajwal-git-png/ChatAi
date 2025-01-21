@@ -50,22 +50,18 @@ try:
     if not mongo_uri:
         raise ValueError("MONGODB_URI environment variable is not set")
     
-    # Parse the connection string to ensure SRV resolution
-    if 'mongodb+srv://' not in mongo_uri:
-        raise ValueError("MongoDB URI must use mongodb+srv:// protocol")
-
-    # Configure MongoDB client with explicit SSL settings
+    # Configure MongoDB client with minimal settings
     mongo_client = MongoClient(
         mongo_uri,
-        serverSelectionTimeoutMS=30000,
-        connectTimeoutMS=20000,
-        socketTimeoutMS=20000,
-        tls=True,
-        tlsAllowInvalidCertificates=True,
-        connect=True
+        serverSelectionTimeoutMS=5000,  # Reduced timeout
+        connectTimeoutMS=5000,
+        socketTimeoutMS=5000,
+        connect=False,  # Defer connection until first operation
+        retryWrites=True,
+        retryReads=True
     )
     # Test the connection
-    mongo_client.server_info()
+    mongo_client.admin.command('ping')  # Lighter weight than server_info
     db = mongo_client.get_database('chatbot')
     print("Successfully connected to MongoDB")
 except (PyMongoError, ServerSelectionTimeoutError) as e:
@@ -659,5 +655,5 @@ def user_details(user_id):
         return redirect(url_for('admin_dashboard'))
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
