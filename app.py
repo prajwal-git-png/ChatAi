@@ -50,11 +50,19 @@ try:
     if not mongo_uri:
         raise ValueError("MONGODB_URI environment variable is not set")
     
+    # Parse the connection string to ensure SRV resolution
+    if 'mongodb+srv://' not in mongo_uri:
+        raise ValueError("MongoDB URI must use mongodb+srv:// protocol")
+
+    # Configure MongoDB client with explicit SSL settings
     mongo_client = MongoClient(
         mongo_uri,
         serverSelectionTimeoutMS=30000,
         connectTimeoutMS=20000,
-        socketTimeoutMS=20000
+        socketTimeoutMS=20000,
+        ssl=True,
+        ssl_cert_reqs='CERT_NONE',
+        connect=True
     )
     # Test the connection
     mongo_client.server_info()
