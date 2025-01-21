@@ -60,8 +60,8 @@ try:
         serverSelectionTimeoutMS=30000,
         connectTimeoutMS=20000,
         socketTimeoutMS=20000,
-        ssl=True,
-        ssl_cert_reqs='CERT_NONE',
+        tls=True,
+        tlsAllowInvalidCertificates=True,
         connect=True
     )
     # Test the connection
