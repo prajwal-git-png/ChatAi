@@ -253,6 +253,9 @@ def delete_chat(chat_id):
 @login_required
 def chat():
     try:
+        if not request.is_json:
+            return jsonify({'error': 'Invalid request format. Expected JSON'}), 400
+            
         message = request.json.get('message', '')
         api_key = request.json.get('api_key')
         hf_api_key = request.json.get('hf_api_key')
@@ -260,14 +263,26 @@ def chat():
         if not message:
             return jsonify({'error': 'No message provided'}), 400
 
+        if not api_key:
+            return jsonify({'error': 'API key is required'}), 400
+
         # Configure AI models with provided keys
-        if api_key:
+        try:
             genai.configure(api_key=api_key)
+        except Exception as e:
+            return jsonify({'error': f'Invalid Gemini API key: {str(e)}'}), 400
+
         if hf_api_key:
-            image_generator.set_api_key(hf_api_key)
+            try:
+                image_generator.set_api_key(hf_api_key)
+            except Exception as e:
+                return jsonify({'error': f'Invalid Hugging Face API key: {str(e)}'}), 400
 
         # Check if message is for image generation
         if message.startswith('@image'):
+            if not hf_api_key:
+                return jsonify({'error': 'Hugging Face API key is required for image generation'}), 400
+                
             image_prompt = message[6:].strip()
             try:
                 image_base64 = image_generator.generate_image(image_prompt)
@@ -282,15 +297,18 @@ def chat():
                 return jsonify({'error': f"Failed to generate image: {str(e)}"}), 500
 
         # Process regular chat message
-        response = chat_manager.process_message(message, current_user.get_id())
-        return jsonify({
-            'response': response,
-            'error': None
-        })
+        try:
+            response = chat_manager.process_message(message, current_user.get_id())
+            return jsonify({
+                'response': response,
+                'error': None
+            })
+        except Exception as e:
+            return jsonify({'error': f'Failed to process message: {str(e)}'}), 500
 
     except Exception as e:
         print(f"Error in chat: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error occurred'}), 500
 
 @app.route('/generate-image', methods=['POST'])
 @login_required
@@ -317,22 +335,36 @@ def clear_history():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/verify_api_key', methods=['POST'])
-@login_required
-def verify_api_key():
+@app.route('/verify-gemini-key', methods=['POST'])
+def verify_gemini_key():
     try:
         api_key = request.json.get('api_key')
         if not api_key:
-            return jsonify({'valid': False, 'error': 'API key is required'}), 400
-        
-        # Try to configure and make a simple test request
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
-        # Make a simple test request
-        response = model.generate_content("Hello")
-        return jsonify({'valid': True})
+            return jsonify({'valid': False, 'error': 'No API key provided'}), 400
+
+        try:
+            # Configure Gemini with the API key
+            genai.configure(api_key=api_key)
+            
+            # Try to generate a simple response to verify the key
+            model = genai.GenerativeModel('gemini-pro')
+            response = model.generate_content("Hello")
+            
+            return jsonify({
+                'valid': True,
+                'message': 'API key is valid'
+            })
+        except Exception as e:
+            return jsonify({
+                'valid': False,
+                'error': f'Invalid API key: {str(e)}'
+            }), 400
+
     except Exception as e:
-        return jsonify({'valid': False, 'error': str(e)}), 400
+        return jsonify({
+            'valid': False,
+            'error': f'Server error: {str(e)}'
+        }), 500
 
 # Vercel serverless configuration
 if __name__ == '__main__':

@@ -47,7 +47,7 @@ async function sendMessage() {
     const message = userInput.value.trim();
     if (!message) return;
 
-    if (!apiKey) {
+    if (!localStorage.getItem('apiKey')) {
         showToast('Please set your API key in settings');
         return;
     }
@@ -76,14 +76,19 @@ async function sendMessage() {
             })
         });
 
-        if (!response.ok) {
-            throw new Error('Network response was not ok');
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("Server returned non-JSON response");
         }
 
         const data = await response.json();
         
         // Remove typing indicator
         removeTypingIndicator();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Server error occurred');
+        }
 
         // Display bot response
         if (data.response) {
@@ -99,7 +104,11 @@ async function sendMessage() {
     } catch (error) {
         console.error('Error:', error);
         removeTypingIndicator();
-        appendMessage('Sorry, I encountered an error. Please try again.', false, true);
+        const errorMessage = error.message || 'Sorry, I encountered an error. Please try again.';
+        appendMessage(errorMessage, false, true);
+    } finally {
+        // Re-enable send button
+        document.getElementById('send-button').disabled = false;
     }
 
     // Scroll to bottom
@@ -383,7 +392,7 @@ function createCodeBlockHTML(language, code) {
                 <pre><code class="language-${language.toLowerCase() || 'javascript'}">${escapeHtml(code)}</code></pre>
                 <button class="code-copy-btn" onclick="copyCode(this)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M8 17.929H6c-1.105 0-2 .912-2 2.036V5.036C4 3.912 4.895 3 6 3h8c1.105 0 2 .912 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.088 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.035V9.107c0-1.124.895-2.036 2-2.036z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M8 17.929H6c-1.105 0-2 .912-2 2.036V5.036C4 3.912 4.895 3 6 3h8c1.105 0 2 .912 2 2.036v1.866m-6 .17h8c1.105 0 2-.911 2-2.035V9.107c0-1.124.895-2.036 2-2.036z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                     Copy
                 </button>
@@ -590,24 +599,63 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsModal.style.display = 'none';
     });
     
-    saveSettings.addEventListener('click', () => {
+    // Add verify API key functions
+    async function verifyGeminiKey(apiKey) {
+        try {
+            const response = await fetch('/verify-gemini-key', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ api_key: apiKey })
+            });
+
+            const data = await response.json();
+            return {
+                valid: data.valid,
+                message: data.valid ? data.message : data.error
+            };
+        } catch (error) {
+            console.error('Error verifying Gemini API key:', error);
+            return {
+                valid: false,
+                message: 'Failed to verify API key: ' + error.message
+            };
+        }
+    }
+
+    // Update the settings event listener
+    saveSettings.addEventListener('click', async function() {
         const newApiKey = apiKeyInput.value.trim();
         const newHfApiKey = hfApiKeyInput.value.trim();
         
-        if (newApiKey !== apiKey) {
-            apiKey = newApiKey;
-            localStorage.setItem('apiKey', apiKey);
+        // Verify Gemini API key if provided
+        if (newApiKey) {
+            const verifyResult = await verifyGeminiKey(newApiKey);
+            if (!verifyResult.valid) {
+                showToast(verifyResult.message);
+                return;
+            }
         }
-        
-        if (newHfApiKey !== hfApiKey) {
-            hfApiKey = newHfApiKey;
-            localStorage.setItem('hfApiKey', hfApiKey);
+
+        // Verify Hugging Face API key if provided
+        if (newHfApiKey) {
+            const verifyResult = await verifyApiKey(newHfApiKey);
+            if (!verifyResult.valid) {
+                showToast(verifyResult.message);
+                return;
+            }
         }
+
+        // Save keys if verification passed
+        if (newApiKey) localStorage.setItem('apiKey', newApiKey);
+        if (newHfApiKey) localStorage.setItem('hfApiKey', newHfApiKey);
         
+        // Close modal and show success message
         settingsModal.style.display = 'none';
-        showToast('Settings saved successfully');
+        showToast('Settings saved successfully!');
     });
-    
+
     toggleApiVisibility.addEventListener('click', () => {
         const type = apiKeyInput.type;
         apiKeyInput.type = type === 'password' ? 'text' : 'password';
