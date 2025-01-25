@@ -19,10 +19,6 @@ A sophisticated AI chatbot built using Flask and Google's Gemini Pro API. The pr
 
 ![Screenshot 2025-01-20 180222](https://github.com/user-attachments/assets/1c658857-3ee4-4fb1-b9c4-ce766ab9a9f9)
 
-![Screenshot 2025-01-20 180251](https://github.com/user-attachments/assets/c8495d04-e044-41c1-82ad-7358290d1e55)
-
-![Screenshot 2025-01-20 180307](https://github.com/user-attachments/assets/89b677dc-c37d-4179-bc04-3b7e989890bb)
-
 ![Screenshot 2025-01-20 175743](https://github.com/user-attachments/assets/a61881e5-0884-465e-9872-03cfdb570a13)
 
 ![Screenshot 2025-01-20 175822](https://github.com/user-attachments/assets/eae0b945-58d7-4936-a298-e9569b622d08)
