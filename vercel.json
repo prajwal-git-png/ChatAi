@@ -1,0 +1,29 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "wsgi.py",
+            "use": "@vercel/python"
+        },
+        {
+            "src": "static/**",
+            "use": "@vercel/static"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/static/(.*)",
+            "dest": "/static/$1"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "wsgi.py"
+        }
+    ],
+    "env": {
+        "PORT": "3000",
+        "PYTHONUNBUFFERED": "1",
+        "FLASK_ENV": "production",
+        "FLASK_APP": "wsgi.py"
+    }
+}

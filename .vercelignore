@@ -1,0 +1,14 @@
+.env
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+.git
+.gitignore
+*.log
+venv/
+env/
+.env.local
+.env.*.local
+node_modules/
+.DS_Store

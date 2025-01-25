@@ -24,9 +24,7 @@
                     <div class="auth-tab active" id="userTab" onclick="switchTab('user')">
                         User Login
                     </div>
-                    <div class="auth-tab admin" id="adminTab" onclick="switchTab('admin')">
-                        Admin Login
-                    </div>
+                    
                 </div>
 
                 <!-- User Login Form -->
@@ -49,20 +47,7 @@
                 </div>
 
                 <!-- Admin Login Form -->
-                <div id="adminForm" class="auth-form" style="display: none;">
-                    <form method="POST" action="{{ url_for('login') }}">
-                        <div class="mb-3">
-                            <label class="form-label">Admin Email</label>
-                            <input type="email" class="form-control" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Admin Password</label>
-                            <input type="password" class="form-control" name="password" required>
-                        </div>
-                        <input type="hidden" name="login_type" value="admin">
-                        <button type="submit" class="btn btn-danger w-100">Admin Sign In</button>
-                    </form>
-                </div>
+           
             </div>
         </div>
     </div>
@@ -71,9 +56,9 @@
 <script>
 function switchTab(type) {
     const userTab = document.getElementById('userTab');
-    const adminTab = document.getElementById('adminTab');
+
     const userForm = document.getElementById('userForm');
-    const adminForm = document.getElementById('adminForm');
+
 
     if (type === 'admin') {
         userTab.classList.remove('active');

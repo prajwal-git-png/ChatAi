@@ -1,75 +1,122 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
-import json
-import google.generativeai as genai
-from dotenv import load_dotenv
-from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
-from bson import ObjectId
-from functools import wraps
-import sys
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_from_directory
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_session import Session
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import json
+from datetime import datetime, timedelta
+from werkzeug.security import generate_password_hash, check_password_hash
+import google.generativeai as genai
+import secrets
+import tempfile
+from pathlib import Path
+from image_generator import ImageGenerator
+from chat_manager import ChatManager
 
-load_dotenv()
-
+# Initialize Flask app
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key')
+
+# Auto-generate secret key
+app.secret_key = secrets.token_hex(32)
+
+# Session configuration for Vercel
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+app.config['SESSION_FILE_DIR'] = tempfile.gettempdir()
+
+# Initialize Flask-Session
+Session(app)
+
+# Configure paths for Vercel deployment
+def get_data_dir():
+    """Get the appropriate data directory for the environment"""
+    if os.environ.get('VERCEL_ENV'):
+        # Use /tmp directory in Vercel
+        base_dir = Path(tempfile.gettempdir())
+    else:
+        # Use local directory in development
+        base_dir = Path(__file__).parent
+    
+    data_dir = base_dir / 'data'
+    data_dir.mkdir(exist_ok=True)
+    return data_dir
+
+# Initialize data files
+DATA_DIR = get_data_dir()
+USERS_FILE = DATA_DIR / 'users.json'
+CHATS_FILE = DATA_DIR / 'chats.json'
+
+def ensure_data_files():
+    """Ensure data files exist with default structure"""
+    if not USERS_FILE.exists():
+        with open(USERS_FILE, 'w') as f:
+            json.dump({"users": []}, f)
+    
+    if not CHATS_FILE.exists():
+        with open(CHATS_FILE, 'w') as f:
+            json.dump({"chats": []}, f)
+
+ensure_data_files()
 
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login_page'
 
-# Local storage for users
-USERS_FILE = 'users.json'
+# User class for Flask-Login
+class User:
+    def __init__(self, user_data):
+        self.id = str(user_data.get('id'))
+        self.email = user_data.get('email')
+        self.name = user_data.get('name')
+        self.password_hash = user_data.get('password')
+        self.is_admin = user_data.get('is_admin', False)
 
-def load_users():
-    try:
-        if os.path.exists(USERS_FILE):
-            with open(USERS_FILE, 'r') as f:
-                return json.load(f)
-        return {}
-    except Exception as e:
-        print(f"Error loading users: {e}")
-        return {}
+    @property
+    def is_active(self):
+        return True
 
-def save_users(users):
-    try:
-        with open(USERS_FILE, 'w') as f:
-            json.dump(users, f)
-    except Exception as e:
-        print(f"Error saving users: {e}")
+    @property
+    def is_authenticated(self):
+        return True
 
-# User class
-class User(UserMixin):
-    def __init__(self, user_id, username, email):
-        self.id = user_id
-        self.username = username
-        self.email = email
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)
+
+    @staticmethod
+    def get(user_id):
+        with open(USERS_FILE, 'r') as f:
+            users_data = json.load(f)
+            for user in users_data.get('users', []):
+                if str(user.get('id')) == str(user_id):
+                    return User(user)
+        return None
 
 @login_manager.user_loader
 def load_user(user_id):
-    users = load_users()
-    if user_id in users:
-        user_data = users[user_id]
-        return User(user_id, user_data['username'], user_data['email'])
-    return None
+    return User.get(user_id)
 
+# Initialize chat manager and image generator
 try:
-    # Initialize chat manager and image generator
-    from chat_manager import ChatManager
-    from image_generator import ImageGenerator
-    chat_manager = ChatManager(max_history=50)
+    chat_manager = ChatManager()
     image_generator = ImageGenerator()
-
-    # Add some permanent context about the user
-    chat_manager.add_permanent_info("bot_personality", "Professional and friendly AI assistant")
-
 except Exception as e:
     print(f"An error occurred while initializing chat manager or image generator: {str(e)}")
     raise
+
+# Initialize AI models
+def init_ai_models():
+    try:
+        gemini_key = os.environ.get('GOOGLE_API_KEY')
+        if gemini_key:
+            genai.configure(api_key=gemini_key)
+    except Exception as e:
+        print(f"Warning: Could not initialize Gemini model: {str(e)}")
+
+init_ai_models()
 
 @app.route('/login_page')
 def login_page():
@@ -83,87 +130,86 @@ def register():
         return redirect(url_for('home'))
         
     if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        
-        users = load_users()
-        
-        # Check if username already exists
-        if any(u['username'] == username for u in users.values()):
-            flash('Username already exists')
+        try:
+            name = request.form['name']
+            email = request.form['email']
+            password = request.form['password']
+            confirm_password = request.form['confirm_password']
+
+            if password != confirm_password:
+                flash('Passwords do not match.', 'error')
+                return redirect(url_for('register'))
+
+            users = json.load(open(USERS_FILE, 'r'))
+            
+            # Check if email already exists
+            if any(u['email'] == email for u in users.get('users', [])):
+                flash('Email already registered.', 'error')
+                return redirect(url_for('register'))
+
+            # Create new user
+            user_id = str(len(users.get('users', [])) + 1)
+            users['users'].append({
+                'id': user_id,
+                'name': name,
+                'email': email,
+                'password': generate_password_hash(password),
+                'is_admin': False
+            })
+            
+            with open(USERS_FILE, 'w') as f:
+                json.dump(users, f)
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('login_page'))
+
+        except Exception as e:
+            flash(f'An error occurred during registration: {str(e)}', 'error')
             return redirect(url_for('register'))
-        
-        # Create new user
-        user_id = str(len(users) + 1)
-        users[user_id] = {
-            'username': username,
-            'email': email,
-            'password': generate_password_hash(password)
-        }
-        
-        save_users(users)
-        
-        user = User(user_id, username, email)
-        login_user(user)
-        flash('Registration successful!', 'success')
-        return redirect(url_for('home'))
-        
+
     return render_template('register.html')
 
 @app.route('/login', methods=['POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('home'))
-    
     try:
-        username = request.form['username']
+        email = request.form['email']
         password = request.form['password']
-        
-        users = load_users()
-        
-        # Find user by username
-        user_id = None
-        user_data = None
-        for uid, data in users.items():
-            if data['username'] == username:
-                user_id = uid
-                user_data = data
+        login_type = request.form.get('login_type', 'user')
+
+        users = json.load(open(USERS_FILE, 'r'))
+        # Find user by email in the users dictionary
+        user = None
+        for user_data in users.get('users', []):
+            if user_data['email'] == email:
+                user = user_data
                 break
-        
-        if user_data and check_password_hash(user_data['password'], password):
-            user = User(user_id, username, user_data['email'])
-            login_user(user)
-            flash('Login successful!', 'success')
-            next_page = request.args.get('next')
-            
-            return redirect(next_page or url_for('home'))
-        
-        flash('Invalid username or password')
-        return redirect(url_for('login_page'))
+
+        if user and check_password_hash(user['password'], password):
+            if login_type == 'admin' and not user.get('is_admin', False):
+                flash('Access denied. Admin privileges required.', 'error')
+                return redirect(url_for('login_page'))
+
+            user_obj = User(user)
+            login_user(user_obj)
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid email or password.', 'error')
+            return redirect(url_for('login_page'))
+
     except Exception as e:
-        flash(f'An error occurred during login: {str(e)}')
+        flash(f'An error occurred during login: {str(e)}', 'error')
         return redirect(url_for('login_page'))
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    session.clear()
-    flash('You have been logged out successfully', 'success')
+    flash('Successfully logged out.', 'success')
     return redirect(url_for('login_page'))
 
 @app.route('/')
 @login_required
 def home():
     return render_template('index.html')
-
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    # Get user's chat history
-    chat_history = chat_manager.get_history(current_user.get_id())
-    return render_template('dashboard.html', chat_history=chat_history)
 
 @app.route('/update_profile', methods=['POST'])
 @login_required
@@ -173,17 +219,20 @@ def update_profile():
         email = request.form.get('email')
         new_password = request.form.get('new_password')
         
-        users = load_users()
+        users = json.load(open(USERS_FILE, 'r'))
         
         # Update user data
-        if username:
-            users[current_user.get_id()]['username'] = username
-        if email:
-            users[current_user.get_id()]['email'] = email
-        if new_password:
-            users[current_user.get_id()]['password'] = generate_password_hash(new_password)
+        for user in users.get('users', []):
+            if user['id'] == current_user.get_id():
+                if username:
+                    user['name'] = username
+                if email:
+                    user['email'] = email
+                if new_password:
+                    user['password'] = generate_password_hash(new_password)
         
-        save_users(users)
+        with open(USERS_FILE, 'w') as f:
+            json.dump(users, f)
         
         flash('Profile updated successfully!', 'success')
         return jsonify({"success": True})
@@ -204,55 +253,43 @@ def delete_chat(chat_id):
 @login_required
 def chat():
     try:
-        data = request.json
-        message = data.get('message')
-        api_key = request.headers.get('X-API-Key')
-        
-        if not api_key:
-            return jsonify({'error': 'API key is required'}), 401
-        
-        # Check if message contains @image tag
+        message = request.json.get('message', '')
+        api_key = request.json.get('api_key')
+        hf_api_key = request.json.get('hf_api_key')
+
+        if not message:
+            return jsonify({'error': 'No message provided'}), 400
+
+        # Configure AI models with provided keys
+        if api_key:
+            genai.configure(api_key=api_key)
+        if hf_api_key:
+            image_generator.set_api_key(hf_api_key)
+
+        # Check if message is for image generation
         if message.startswith('@image'):
-            print(f"Processing image generation request: {message}")
-            # Extract the prompt after @image tag
             image_prompt = message[6:].strip()
-            print(f"Image prompt: {image_prompt}")
-            
-            # Generate image
             try:
-                print("Calling image generator...")
                 image_base64 = image_generator.generate_image(image_prompt)
-                print(f"Image generated successfully, base64 length: {len(image_base64)}")
                 response_text = f"I've generated an image based on your prompt: {image_prompt}"
-                
-                # Add to history
-                chat_manager.add_to_history(current_user.get_id(), message, response_text)
-                
-                print("Sending response with image...")
                 return jsonify({
                     'response': response_text,
                     'image': image_base64
                 })
+            except ValueError as e:
+                return jsonify({'error': str(e)}), 400
             except Exception as e:
-                error_msg = f"Failed to generate image: {str(e)}"
-                print(error_msg)
-                return jsonify({'error': error_msg}), 500
-        
-        # Handle normal text chat
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
-        
-        context = chat_manager.get_context_for_prompt(current_user.get_id())
-        full_prompt = f"{context}\nUser: {message}\nAssistant:"
-        
-        response = model.generate_content(full_prompt)
-        chat_manager.add_to_history(current_user.get_id(), message, response.text)
-        
+                return jsonify({'error': f"Failed to generate image: {str(e)}"}), 500
+
+        # Process regular chat message
+        response = chat_manager.process_message(message, current_user.get_id())
         return jsonify({
-            'response': response.text
+            'response': response,
+            'error': None
         })
+
     except Exception as e:
-        print(f"Error in chat route: {str(e)}")
+        print(f"Error in chat: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/generate-image', methods=['POST'])
@@ -297,6 +334,16 @@ def verify_api_key():
     except Exception as e:
         return jsonify({'valid': False, 'error': str(e)}), 400
 
+# Vercel serverless configuration
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Get port from environment variable or default to 3000
+    port = int(os.environ.get('PORT', 3000))
+    
+    # Check if running on Vercel
+    if os.environ.get('VERCEL_ENV'):
+        # In Vercel, we don't run the app directly
+        # Vercel will use the app object
+        pass
+    else:
+        # Local development
+        app.run(host='0.0.0.0', port=port)

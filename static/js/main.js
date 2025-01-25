@@ -6,6 +6,7 @@ const sendButton = document.getElementById('send-button');
 let isDarkMode = localStorage.getItem('darkMode') === 'true';
 let isInitialLoad = true;
 let apiKey = localStorage.getItem('apiKey');
+let hfApiKey = localStorage.getItem('hfApiKey');
 
 // Function to save chat message
 function saveChat(message, isUser, imageData = null) {
@@ -66,10 +67,13 @@ async function sendMessage() {
         const response = await fetch('/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': apiKey
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ message })
+            body: JSON.stringify({
+                message: message,
+                api_key: localStorage.getItem('apiKey'),
+                hf_api_key: localStorage.getItem('hfApiKey')
+            })
         });
 
         if (!response.ok) {
@@ -379,7 +383,7 @@ function createCodeBlockHTML(language, code) {
                 <pre><code class="language-${language.toLowerCase() || 'javascript'}">${escapeHtml(code)}</code></pre>
                 <button class="code-copy-btn" onclick="copyCode(this)">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M8 17.929H6c-1.105 0-2 .912-2 2.036V5.036C4 3.912 4.895 3 6 3h8c1.105 0 2 .912 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.088 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M8 17.929H6c-1.105 0-2 .912-2 2.036V5.036C4 3.912 4.895 3 6 3h8c1.105 0 2 .912 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.088 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.035V9.107c0-1.124.895-2.036 2-2.036z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                     Copy
                 </button>
@@ -567,68 +571,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSettings = document.getElementById('close-settings');
     const saveSettings = document.getElementById('save-settings');
     const apiKeyInput = document.getElementById('api-key');
+    const hfApiKeyInput = document.getElementById('hf-api-key');
     const toggleApiVisibility = document.getElementById('toggle-api-visibility');
-
-    // Load saved API key if exists
+    const toggleHfApiVisibility = document.getElementById('toggle-hf-api-visibility');
+    
     if (apiKey) {
         apiKeyInput.value = apiKey;
     }
-
+    if (hfApiKey) {
+        hfApiKeyInput.value = hfApiKey;
+    }
+    
     settingsBtn.addEventListener('click', () => {
-        settingsModal.style.display = 'flex';
+        settingsModal.style.display = 'block';
     });
-
+    
     closeSettings.addEventListener('click', () => {
         settingsModal.style.display = 'none';
     });
-
-    saveSettings.addEventListener('click', async () => {
+    
+    saveSettings.addEventListener('click', () => {
         const newApiKey = apiKeyInput.value.trim();
-        if (!newApiKey) {
-            showToast('Please enter an API key');
-            return;
-        }
-
-        // Show loading state
-        saveSettings.disabled = true;
-        saveSettings.innerHTML = 'Verifying...';
+        const newHfApiKey = hfApiKeyInput.value.trim();
         
-        try {
-            const response = await fetch('/verify_api_key', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ api_key: newApiKey })
-            });
-
-            const data = await response.json();
-
-            if (data.valid) {
-                apiKey = newApiKey;
-                localStorage.setItem('apiKey', apiKey);
-                showToast('API key verified and saved successfully');
-                settingsModal.style.display = 'none';
-            } else {
-                showToast(data.error || 'Invalid API key');
-            }
-        } catch (error) {
-            showToast('Error verifying API key');
-            console.error('Error:', error);
-        } finally {
-            // Reset button state
-            saveSettings.disabled = false;
-            saveSettings.innerHTML = 'Save Settings';
+        if (newApiKey !== apiKey) {
+            apiKey = newApiKey;
+            localStorage.setItem('apiKey', apiKey);
         }
+        
+        if (newHfApiKey !== hfApiKey) {
+            hfApiKey = newHfApiKey;
+            localStorage.setItem('hfApiKey', hfApiKey);
+        }
+        
+        settingsModal.style.display = 'none';
+        showToast('Settings saved successfully');
     });
-
+    
     toggleApiVisibility.addEventListener('click', () => {
-        const isShowing = apiKeyInput.type === 'text';
-        apiKeyInput.type = isShowing ? 'password' : 'text';
-        toggleApiVisibility.classList.toggle('showing', !isShowing);
+        const type = apiKeyInput.type;
+        apiKeyInput.type = type === 'password' ? 'text' : 'password';
+        toggleApiVisibility.querySelector('.show-key').style.display = type === 'password' ? 'none' : 'block';
+        toggleApiVisibility.querySelector('.hide-key').style.display = type === 'password' ? 'block' : 'none';
     });
-
-    // Close modal when clicking outside
+    
+    toggleHfApiVisibility.addEventListener('click', () => {
+        const type = hfApiKeyInput.type;
+        hfApiKeyInput.type = type === 'password' ? 'text' : 'password';
+        toggleHfApiVisibility.querySelector('.show-key').style.display = type === 'password' ? 'none' : 'block';
+        toggleHfApiVisibility.querySelector('.hide-key').style.display = type === 'password' ? 'block' : 'none';
+    });
+    
     settingsModal.addEventListener('click', (e) => {
         if (e.target === settingsModal) {
             settingsModal.style.display = 'none';
