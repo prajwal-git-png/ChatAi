@@ -934,6 +934,16 @@ body {
 }
 
 /* Add these light mode styles */
+
+.message-bubble {
+    padding: 10px 12px !important;
+    border-radius: 18px 18px 18px 18px !important ;
+
+}
+
+
+
+
 .light-mode {
     background: #ffffff;
     color: #1a1a1a;
