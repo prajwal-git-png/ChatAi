@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from image_generator import ImageGenerator
 from chat_manager import ChatManager
+import requests
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -365,6 +366,41 @@ def verify_gemini_key():
             'valid': False,
             'error': f'Server error: {str(e)}'
         }), 500
+
+@app.route('/verify_api_key', methods=['POST'])
+def verify_api_key():
+    try:
+        data = request.get_json()
+        api_key = data.get('api_key')
+        
+        if not api_key:
+            return jsonify({'valid': False, 'message': 'No API key provided'}), 400
+            
+        # Clean the API key
+        cleaned_key = api_key.strip().replace('"', '').replace("'", '')
+        
+        if not cleaned_key.startswith('hf_'):
+            return jsonify({'valid': False, 'message': 'Invalid API key format - must start with hf_'}), 400
+            
+        # Make a test request to Hugging Face API
+        headers = {
+            "Authorization": f"Bearer {cleaned_key}"
+        }
+        
+        # Make a lightweight request to verify the key
+        response = requests.get(
+            "https://api-inference.huggingface.co/status/stabilityai/stable-diffusion-3.5-large-turbo",
+            headers=headers
+        )
+        
+        if response.status_code == 401:
+            return jsonify({'valid': False, 'message': 'Invalid API key'}), 401
+            
+        return jsonify({'valid': True, 'message': 'API key verified successfully'})
+        
+    except Exception as e:
+        print(f"Error verifying API key: {str(e)}")
+        return jsonify({'valid': False, 'message': str(e)}), 500
 
 # Vercel serverless configuration
 if __name__ == '__main__':
