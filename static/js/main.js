@@ -964,3 +964,55 @@ function clearAllConversations() {
         }
     };
 }
+
+async function verifyApiKey(apiKey) {
+    try {
+        // Basic format validation
+        if (!apiKey || typeof apiKey !== 'string') {
+            return {
+                valid: false,
+                message: "API key must be a non-empty string"
+            };
+        }
+
+        // Clean the API key
+        const cleanedKey = apiKey.trim().replace(/['"]/g, '');
+
+        // Check if it starts with hf_
+        if (!cleanedKey.startsWith('hf_')) {
+            return {
+                valid: false,
+                message: "Invalid API key format. Key should start with 'hf_'"
+            };
+        }
+
+        // Make a test request to verify the key
+        const response = await fetch('/verify_api_key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ api_key: cleanedKey })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            return {
+                valid: false,
+                message: data.message || "Failed to verify API key"
+            };
+        }
+
+        return {
+            valid: true,
+            message: "API key verified successfully"
+        };
+    } catch (error) {
+        console.error('Error verifying API key:', error);
+        return {
+            valid: false,
+            message: "Error verifying API key. Please try again."
+        };
+    }
+}
