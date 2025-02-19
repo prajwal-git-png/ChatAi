@@ -496,18 +496,7 @@ body {
     outline: none;
 }
 
-#send-button {
-    background: transparent;
-    border: none;
-    color: var(--span-accent);
-    cursor: pointer;
-    padding: 0.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0.8;
-    transition: opacity 0.2s;
-}
+
 
 #send-button:hover:not(:disabled) {
     opacity: 1;
@@ -1197,6 +1186,7 @@ span {
 #send-button {
     background: transparent;
     border: none;
+    border-radius: 25px ;
     color: var(--span-accent);
     cursor: pointer;
     padding: 0.5rem;
