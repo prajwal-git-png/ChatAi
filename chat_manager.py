@@ -93,7 +93,7 @@ class ChatManager:
 
             # Use Gemini model for text generation
             # model = genai.GenerativeModel('gemini-pro')
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             response = model.generate_content(full_prompt)
             
