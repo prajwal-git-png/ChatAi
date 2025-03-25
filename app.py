@@ -348,7 +348,7 @@ def verify_gemini_key():
             genai.configure(api_key=api_key)
             
             # Try to generate a simple response to verify the key
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-1.5-pro-latest')
             response = model.generate_content("Hello")
             
             return jsonify({
