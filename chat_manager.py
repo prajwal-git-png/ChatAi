@@ -92,7 +92,7 @@ class ChatManager:
             full_prompt = f"{context}\nUser: {message}\nAssistant:"
 
             # Use Gemini model for text generation
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-1.5-pro-latest')
             # model = genai.GenerativeModel('gemini-1.5-flash')
             
             response = model.generate_content(full_prompt)
