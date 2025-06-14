@@ -112,8 +112,12 @@ class ChatManager:
             full_prompt = f"{context}\nUser: {message}\nAssistant:"
 
             # Use Gemini model for text generation
-            model = genai.GenerativeModel('gemini-1.5-pro-latest')  # or 'gemini-1.5-pro'
+            # model = genai.GenerativeModel('gemini-1.5-pro-latest')  # or 'gemini-1.5-pro'
             # model = genai.GenerativeModel('gemini-1.5-flash')
+            try:
+              model = genai.GenerativeModel('gemini-1.5-flash')  # use lightweight model
+            except:
+                model = genai.GenerativeModel('gemini-1.5-pro-latest')  # fallback if needed
 
 
             response = self._generate_content_with_backoff(model, full_prompt)
